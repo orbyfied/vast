@@ -1,3 +1,4 @@
+use std::cmp::max_by_key;
 use clap::Parser;
 use vastc_impl::parser::lexer::Lexer;
 use vastc_supplemental::{debug};
@@ -25,8 +26,15 @@ fn main() {
   ///////////////////////
   ///////////////////////
 
-  let source = Source::new("cybeans", "hi");
+  let source = Source::new("cybeans", "hi \"jk\\\\kee\" { 'a' '\\' ( } ) [ fn let :: @ ]");
   let mut lexer = Lexer::new(&source);
-  let tokens = lexer.tokenize().tokens();
+  lexer.tokenize();
+  if lexer.error_count() > 0 {
+    lexer.errors().for_each(|err| {
+      println!("{}", err);
+    });
+  }
+
+  let tokens = lexer.tokens();
   println!("{:#?}", tokens);
 }

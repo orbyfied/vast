@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::Range;
+use crate::debug;
 
 /// An iterator of a sized character sequence.
 pub trait CharIterator {
@@ -8,7 +9,7 @@ pub trait CharIterator {
   fn advance_0(&mut self) -> Option<char>;
   fn peek_0(&self) -> Option<char>;
   fn done(&self) -> bool;
-  
+
   fn peek_and_advance(&mut self) -> Option<char> {
     let ch = self.peek_0();
     self.advance_0();
@@ -55,8 +56,14 @@ impl<T: Clone> CharTree<T> {
       current = match current.children.get(&c) {
         Some(child) => child,
         None => {
-          it.restore(start);
-          return None
+          return match &current.associate {
+            None => {
+              it.restore(start);
+              None
+            },
+
+            Some(a) => Some((a.clone(), start..it.index()))
+          }
         }
       };
 

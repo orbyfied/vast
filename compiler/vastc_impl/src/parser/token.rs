@@ -180,6 +180,7 @@ pub const TREE_ALL_SYMBOLS: LazyCell<CharTree<TokenType>> = LazyCell::new(|| {
   tree.insert_str(",", TokenType::Comma);
   tree.insert_str("*", TokenType::Asterisk);
   tree.insert_str("@", TokenType::At);
+  tree.insert_str("::", TokenType::DoubleColon);
 
   tree
 });

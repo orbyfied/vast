@@ -1,5 +1,6 @@
 use std::cmp::PartialEq;
 use std::ops::{Deref, Range};
+use vastc_supplemental::debug;
 use vastc_supplemental::source::{Cursor, OptionalChar, Segment, Source, SourceSpan, SourceSpanOps};
 use crate::parser::token;
 use crate::parser::token::{Errno, Token, TokenFlags, TokenType, TREE_ALL_SYMBOLS, KEYWORD_MAP};
@@ -40,6 +41,14 @@ impl<'unit> Lexer<'unit> {
 
   pub fn tokens(&self) -> &Vec<Token> {
     &self.tokens
+  }
+
+  pub fn error_count(&self) -> usize {
+    self.error_tokens.len()
+  }
+
+  pub fn errors(&self) -> impl Iterator<Item = &Token> + '_ {
+    self.error_tokens.iter().map(|&idx| &self.tokens[idx])
   }
 
   pub fn cursor(&self) -> &Cursor<'_> {
@@ -133,8 +142,10 @@ impl<'unit> Lexer<'unit> {
 
       // nothing special, just add char token
       if self.cursor.peek() != '\\' {
+        let ch = self.cursor.peek();
+        self.cursor.advance();
         self.expect_char_and_always_advance('\'').map_err(|s| self.err(Errno::IllegalCharacter, "unexpected character, expected `'` to close char literal", s))?;
-        return Ok(_ = self.make(TokenType::CharLiteral(self.cursor.peek()), Some(idx0..self.cursor.index())))
+        return Ok(_ = self.make(TokenType::CharLiteral(ch), Some(idx0..self.cursor.index())))
       }
 
       // use spec-defined shared char sequence resolver,
@@ -203,6 +214,7 @@ impl<'unit> Lexer<'unit> {
       let char = self.cursor.peek();
       if char == '\n' { apply |= TokenFlags::TAIL_NEWLINE; }
       apply |= TokenFlags::TAIL_SPACE;
+      self.cursor.advance();
     }
 
     if apply != 0 && let Some(tk) = self.tokens.last_mut() {
