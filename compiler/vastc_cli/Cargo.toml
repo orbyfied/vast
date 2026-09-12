@@ -1,0 +1,11 @@
+[package]
+name = "vastc_cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+vastc_supplemental = { workspace = true }
+vastc_impl = { workspace = true }
+clap = { workspace = true }
