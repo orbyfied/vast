@@ -37,6 +37,10 @@ pub const DEFAULT_MAX_LOG_LEVEL: i32 = 99;
     };
 }
 
+/* 
+    Statically compiled ANSI formatting macros
+ */
+
 #[macro_export] macro_rules! trace { ($fmt:expr $(,$arg:expr)*) => { $crate::log!(trace, $fmt $(,$arg)*) }; }
 #[macro_export] macro_rules! debug { ($fmt:expr $(,$arg:expr)*) => { $crate::log!(debug, $fmt $(,$arg)*) }; }
 #[macro_export] macro_rules! ok { ($fmt:expr $(,$arg:expr)*) => { $crate::log!(ok, $fmt $(,$arg)*) }; }

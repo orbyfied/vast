@@ -1,9 +1,11 @@
 use std::cell::LazyCell;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
+use vastc_supplemental::ansi;
 use vastc_supplemental::parse::CharTree;
-use vastc_supplemental::source::{Segment, SourceSpan};
+use vastc_supplemental::source::{Segment, Source, SourceIndex, SourceSpan, SourceSpanOps};
 
 /// Represents a source token with a type, optionally a value, and an attached
 /// position.
@@ -107,7 +109,7 @@ pub enum TokenType {
 
   StringLiteral(/* must own, may be escaped */ String),
   CharLiteral(char),
-  NumericLiteral(NumericLiteralMetadata) /* parsed from source span later in parsing/type resolution */,
+  NumericLiteral(SourceSpan, NumericLiteralMetadata) /* parsed from source span later in parsing/type resolution */,
 
   Identifier /* parsed from source span */,
 
@@ -147,12 +149,15 @@ pub enum TokenType {
 
 }
 
+#[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Errno {
-  IllegalCharacter,
+  IllegalCharacter = 1,
   UnterminatedLiteral,
   IllegalEscapedChar,
   IllegalRadixChar,
+  IllegalDecimalRadix,
+  InvalidTypeQualifier,
 }
 
 impl TokenType {
@@ -210,6 +215,7 @@ pub enum NumericTypeQualifier {
   Infer,
   Float(/* width */ u32),
   Int(/* width */ u32),
+  Unsigned(/* width */ u32),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -217,4 +223,16 @@ pub struct NumericLiteralMetadata {
   pub is_float: bool,                  // whether this literal should be interpreted as a decimal (`.` or F/D suffix)
   pub radix: u16,                      // used later to reparse actual number literal content
   pub type_qual: NumericTypeQualifier, // type qualifier if explicitly specified, otherwise infer
+}
+
+impl TokenType {
+  pub fn is_keyword(&self) -> bool {
+    match self {
+      TokenType::Use |
+      TokenType::Let | TokenType::Fn | TokenType::USelf | TokenType::LSelf | TokenType::Public | TokenType::Mut
+      => true,
+
+      _ => false,
+    }
+  }
 }

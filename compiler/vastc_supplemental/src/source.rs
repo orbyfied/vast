@@ -18,6 +18,9 @@ pub trait SourceSpanOps {
   fn end(&self) -> SourceIndex;
   fn join(&self, other: SourceSpan) -> SourceSpan;
   fn contains_span(&self, other: &SourceSpan) -> bool;
+  fn get_signed_relative_index(&self, idx: isize) -> SourceIndex;
+  fn subrange(&self, start: isize, end: isize) -> SourceSpan;
+  fn distance(&self, idx: SourceIndex) -> isize;
 }
 
 impl SourceSpanOps for SourceSpan {
@@ -49,6 +52,34 @@ impl SourceSpanOps for SourceSpan {
   /// Returns true if this span completely contains `other`.
   fn contains_span(&self, other: &SourceSpan) -> bool {
     self.start <= other.start && self.end >= other.end
+  }
+
+  fn get_signed_relative_index(&self, idx: isize) -> SourceIndex {
+    if idx < 0 {
+      (self.end - (-idx as usize) + 1) - self.start
+    } else {
+      idx as usize
+    }
+  }
+
+  fn subrange(&self, signed_relative_start: isize, signed_relative_end: isize) -> SourceSpan {
+    let relative_start = self.get_signed_relative_index(signed_relative_start);
+    let relative_end = self.get_signed_relative_index(signed_relative_end);
+
+    assert!(self.start + relative_end <= self.end);
+    self.start + relative_start..self.start + relative_end
+  }
+
+  fn distance(&self, idx: SourceIndex) -> isize {
+    if self.contains(&idx) {
+      0
+    } else if idx < self.start {
+      -((self.start - idx) as isize)
+    } else if idx >= self.end {
+      (idx - self.end) as isize
+    } else {
+      unreachable!()
+    }
   }
 }
 
@@ -140,7 +171,7 @@ impl Source {
   /// Returns the byte offset corresponding to a character index.
   ///
   /// The EOF character index is valid.
-  pub fn byte_index(&self, char_index: SourceIndex) -> usize {
+  pub fn byte_offset_of(&self, char_index: SourceIndex) -> usize {
     self.boundaries[char_index as usize] as usize
   }
 
@@ -150,8 +181,8 @@ impl Source {
       return EOF;
     }
 
-    let start = self.byte_index(index);
-    let end = self.byte_index(index + 1);
+    let start = self.byte_offset_of(index);
+    let end = self.byte_offset_of(index + 1);
 
     self.text[start..end].chars().next().unwrap_or(EOF)
   }
@@ -161,8 +192,8 @@ impl Source {
       return None;
     }
 
-    let start = self.byte_index(index);
-    let end = self.byte_index(index + 1);
+    let start = self.byte_offset_of(index);
+    let end = self.byte_offset_of(index + 1);
 
     self.text[start..end].chars().next()
   }
@@ -171,7 +202,7 @@ impl Source {
   pub fn byte_range(&self, span: SourceSpan) -> Range<usize> {
     assert!(span.end <= self.len());
 
-    self.byte_index(span.start)..self.byte_index(span.end)
+    self.byte_offset_of(span.start)..self.byte_offset_of(span.end)
   }
 
   /// Gets the text corresponding to a character-indexed span.
@@ -193,11 +224,11 @@ impl Source {
   /// Find the semantic location for the given character index,
   /// this is not a cheap operation.
   pub fn position_of(&self, index: SourceIndex) -> Position {
-    let byte_position = self.byte_index(index);
+    let byte_position = self.byte_offset_of(index);
 
     // analyze string to find line and column todo
-    let line = 0;
-    let column = index - line;
+    let line = self.find_line(index);
+    let column = index - self.line_span(line).start;
 
     Position { index, byte_position, line, column }
   }
@@ -228,7 +259,15 @@ impl Source {
     let start = self.find_line(span.start());
     let end = self.find_line(span.end());
 
-    start..end
+    start..end + 1
+  }
+
+  pub fn lines(&self) -> &Vec<SourceSpan> {
+    &self.lines
+  }
+
+  pub fn identifier(&self) -> &str {
+    &self.identifier
   }
 }
 
@@ -263,7 +302,7 @@ impl<'a> Cursor<'a> {
   }
 
   pub fn byte_index(&self) -> usize {
-    self.source.byte_index(self.index)
+    self.source.byte_offset_of(self.index)
   }
 
   pub fn is_eof(&self) -> bool {
@@ -487,6 +526,23 @@ impl<'a> Cursor<'a> {
     None
   }
 
+  pub fn parse_u32(&mut self) -> Option<u32> {
+    let start = self.index;
+
+    let mut num = 0u32;
+    while self.peek().is_digit(10) {
+      num *= 10;
+      num += self.peek().to_digit(10).unwrap();
+      self.advance();
+    }
+
+    if start == self.index {
+      None
+    } else {
+      Some(num)
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Expectations
   // -------------------------------------------------------------------------
@@ -630,16 +686,16 @@ fn is_identifier_continue(ch: char) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
   index: SourceIndex,           // The character index into the source file
-  byte_position: usize, // The UTF-8 aligned byte position of the character
+  byte_position: usize,         // The UTF-8 aligned byte position of the character
 
-  line: SourceIndex,            // The line number of the character referred to by this position
+  line: usize,                  // The line number of the character referred to by this position
   column: SourceIndex,          // The column number of the character referred to by this position
 }
 
 impl Position {
   pub fn index(&self) -> SourceIndex { self.index }
   pub fn byte_index(&self) -> usize { self.byte_position }
-  pub fn line(&self) -> SourceIndex { self.line }
+  pub fn line(&self) -> usize { self.line }
   pub fn column(&self) -> SourceIndex { self.column }
 }
 
@@ -652,8 +708,8 @@ impl Into<SourceSpan> for Position {
 /// Represents a semantic point position in source
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Segment {
-  start: Position,
-  end: Position, // exclusive
+  pub start: Position,
+  pub end: Position, // exclusive
 }
 
 impl Segment {

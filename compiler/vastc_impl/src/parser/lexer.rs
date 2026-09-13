@@ -1,4 +1,4 @@
-use crate::parser::token::{Errno, KEYWORD_MAP, TREE_ALL_SYMBOLS, Token, TokenFlags, TokenType};
+use crate::parser::token::{Errno, NumericTypeQualifier, Token, TokenFlags, TokenType, KEYWORD_MAP, TREE_ALL_SYMBOLS, NumericLiteralMetadata};
 use crate::spec::resolve_escaped_char;
 use std::ops::Deref;
 use vastc_supplemental::source::{Cursor, OptionalChar, Source, SourceSpan, SourceSpanOps};
@@ -96,8 +96,74 @@ impl<'unit> Lexer<'unit> {
         self.cursor.advance_by(2);
       }
 
+      // bookkeeping about literal info
+      let mut is_float = false;
+      let mut type_qual = NumericTypeQualifier::Infer;
+
       // start parsing digits!
-      let digitsStartIndex = self.cursor.index();
+      let contentStartIndex = self.cursor.index();
+      if self.cursor.peek() == '-' {
+        self.cursor.advance(); // negative sign parsed later
+      }
+
+      while self.cursor.peek().is_digit(radix) {
+        self.cursor.advance();
+      }
+
+      // detect dot character, and check that it isnt
+      // part of a range or member access
+      if self.cursor.peek() == '.' {
+        if /* member access */ self.cursor.peek_next().is_alphabetic() ||
+           /* range spec */ self.cursor.peek_next() == '.' {
+          return Ok(_ = self.make(TokenType::NumericLiteral(contentStartIndex..self.cursor.index(), NumericLiteralMetadata {
+            is_float,
+            type_qual,
+            radix: radix as u16
+          }), Some(idx0..self.cursor.index())))
+        }
+
+        // classified as decimal point
+        is_float = true;
+        self.cursor.advance();
+
+        // collect decimal range
+        while self.cursor.peek().is_digit(radix) {
+          self.cursor.advance();
+        }
+      }
+
+      let endIndex = self.cursor.index();
+
+      // parse type qual and width
+      if self.cursor.peek().is_alphabetic() {
+        type_qual = match self.cursor.peek() {
+          'f' => { self.cursor.advance(); NumericTypeQualifier::Float(self.cursor.parse_u32().unwrap_or(32)) }
+          'i' => { self.cursor.advance(); NumericTypeQualifier::Int(self.cursor.parse_u32().unwrap_or(32)) }
+          'u' => { self.cursor.advance(); NumericTypeQualifier::Unsigned(self.cursor.parse_u32().unwrap_or(32)) }
+          _   => { self.cursor.advance(); NumericTypeQualifier::Infer }
+        };
+
+        if type_qual == NumericTypeQualifier::Infer {
+          self.err(Errno::InvalidTypeQualifier, "invalid numeric literal type qualifier", Some(idx0..self.cursor.index()));
+        }
+      }
+
+      // classified as decimal point, if radix is not 10,
+      // throw an error for invalid radix
+      if is_float && radix != 10 {
+        self.err(Errno::IllegalDecimalRadix, "float literals must be in decimal radix", Some(idx0..self.cursor.index()));
+      }
+
+      if let NumericTypeQualifier::Float(_) = type_qual {
+        // we set it after the check above because we want hexadecimal int literals to be convertible to floats
+        is_float = true;
+      }
+
+      return Ok(_ = self.make(TokenType::NumericLiteral(contentStartIndex..endIndex, NumericLiteralMetadata {
+        is_float,
+        type_qual,
+        radix: radix as u16
+      }), Some(idx0..self.cursor.index())))
     }
 
     // try parse identifier
