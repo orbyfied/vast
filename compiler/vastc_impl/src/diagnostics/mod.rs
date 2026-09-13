@@ -7,6 +7,7 @@ use vastc_supplemental::ansi::{Attr, Color};
 use vastc_supplemental::io::write_repeated_char;
 use vastc_supplemental::source::{Source, SourceIndex, SourceSpan, SourceSpanOps};
 use crate::parser::token::{Token, TokenType};
+use crate::parser::token::TokenType::Colon;
 
 pub struct UnitDiagnosticContext<'unit> {
   source: &'unit Source,
@@ -199,12 +200,14 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
 
 pub fn char_styles_for_token(tk: &Token) -> (Color, Attr) {
   if tk.ty.is_keyword() {
-    return (Color::lit(0x410bd6), Attr::Reset);
+    return (Color::lit(0xb610e8), Attr::Reset);
   }
 
   match tk.ty {
     TokenType::Error(_, _) => (Color::Gray, Attr::Strike),
 
+    TokenType::BoolLiteral(_) => (Color::lit(0xb610e8), Attr::Italic),
+    TokenType::CharLiteral(_) => (Color::lit(0x7cf06e), Attr::Reset),
     TokenType::StringLiteral(_) => (Color::lit(0x61db53), Attr::Reset),
     TokenType::NumericLiteral(_, _) => (Color::lit(0xd19343), Attr::Reset),
 

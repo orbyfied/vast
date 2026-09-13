@@ -107,6 +107,7 @@ pub enum TokenType {
        Literals
    */
 
+  BoolLiteral(bool),
   StringLiteral(/* must own, may be escaped */ String),
   CharLiteral(char),
   NumericLiteral(SourceSpan, NumericLiteralMetadata) /* parsed from source span later in parsing/type resolution */,
@@ -120,6 +121,13 @@ pub enum TokenType {
   Fn,
   Let,
   Mut,
+  If,
+  Else,
+  Match,
+  Struct,
+  Trait,
+  Dyn,
+  Impl,
 
   Public,
   LSelf, // Lower Self -- "self"
@@ -143,9 +151,54 @@ pub enum TokenType {
   DoubleColon, // ::
   Dot,         // .
   Comma,       // ,
-  Asterisk,    // *
   At,          // @
 
+  /*
+      Assignment
+   */
+  Assign,      // =
+
+  IncrBy,
+  DecrBy,
+  MulBy,
+  DivBy,
+  ModBy,
+
+  AndBy,
+  OrBy,
+  ShlBy,
+  ShrBy,
+  XorBy,
+
+  /*
+      Operators
+   */
+
+  /* Arithmetic */
+  Plus,    // +
+  Minus,   // -
+  Times,   // *
+  Divide,  // /
+  Modulo,  // %
+
+  /* Logic/Binary */
+  And,    // &
+  Or,     // |
+  Invert, // ~
+  Not,    // !
+  And2,   // &&
+  Or2,    // ||
+  Shl,    // <<
+  Shr,    // >>
+  Xor,    // ^
+
+  /* Comparison */
+  Eq,      // ==
+  Neq,     // !=
+  Gt,      // >
+  GtOrEq,  // >=
+  Lt,      // <
+  LtOrEq,  // <=
 
 }
 
@@ -188,9 +241,45 @@ pub const TREE_ALL_SYMBOLS: LazyCell<CharTree<TokenType>> = LazyCell::new(|| {
 
   tree.insert_str(".", TokenType::Dot);
   tree.insert_str(",", TokenType::Comma);
-  tree.insert_str("*", TokenType::Asterisk);
   tree.insert_str("@", TokenType::At);
   tree.insert_str("::", TokenType::DoubleColon);
+
+  tree.insert_str("=", TokenType::Assign);
+
+  tree.insert_str("+=", TokenType::IncrBy);
+  tree.insert_str("-=", TokenType::DecrBy);
+  tree.insert_str("*=", TokenType::MulBy);
+  tree.insert_str("/=", TokenType::DivBy);
+  tree.insert_str("%=", TokenType::ModBy);
+
+  tree.insert_str("&=", TokenType::AndBy);
+  tree.insert_str("|=", TokenType::OrBy);
+  tree.insert_str("<<=", TokenType::ShlBy);
+  tree.insert_str(">>=", TokenType::ShrBy);
+  tree.insert_str("^=", TokenType::XorBy);
+
+  tree.insert_str("+", TokenType::Plus);
+  tree.insert_str("-", TokenType::Minus);
+  tree.insert_str("*", TokenType::Times);
+  tree.insert_str("/", TokenType::Divide);
+  tree.insert_str("%", TokenType::Modulo);
+
+  tree.insert_str("&", TokenType::And);
+  tree.insert_str("&&", TokenType::And2);
+  tree.insert_str("|", TokenType::Or);
+  tree.insert_str("||", TokenType::Or2);
+  tree.insert_str("!", TokenType::Not);
+  tree.insert_str("~", TokenType::Invert);
+  tree.insert_str(">>", TokenType::Shr);
+  tree.insert_str("<<", TokenType::Shl);
+  tree.insert_str("^", TokenType::Xor);
+
+  tree.insert_str("==", TokenType::Eq);
+  tree.insert_str("!=", TokenType::Neq);
+  tree.insert_str(">", TokenType::Gt);
+  tree.insert_str(">=", TokenType::GtOrEq);
+  tree.insert_str("<", TokenType::Lt);
+  tree.insert_str("<=", TokenType::LtOrEq);
 
   tree
 });
@@ -206,6 +295,15 @@ pub const KEYWORD_MAP: LazyCell<HashMap<&'static str, TokenType>> = LazyCell::ne
   map.insert("use", TokenType::Use);
   map.insert("self", TokenType::LSelf);
   map.insert("Self", TokenType::USelf);
+  map.insert("struct", TokenType::Struct);
+  map.insert("impl", TokenType::Impl);
+  map.insert("if", TokenType::If);
+  map.insert("else", TokenType::Else);
+  map.insert("match", TokenType::Match);
+  map.insert("dyn", TokenType::Dyn);
+
+  map.insert("true", TokenType::BoolLiteral(true));
+  map.insert("false", TokenType::BoolLiteral(false));
 
   map
 });

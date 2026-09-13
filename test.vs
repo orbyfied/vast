@@ -1,4 +1,4 @@
 
 
 
-let hi + [] 22.3f31d "d" d use
+let hi + [] 22.3f31 true 'a' "ed" d use
