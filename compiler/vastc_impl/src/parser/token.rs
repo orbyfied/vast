@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
 use vastc_supplemental::parse::CharTree;
-use vastc_supplemental::source::Segment;
+use vastc_supplemental::source::{Segment, SourceSpan};
 
 /// Represents a source token with a type, optionally a value, and an attached
 /// position.
@@ -12,7 +12,7 @@ pub struct Token {
   /// The variant of this token
   pub ty: TokenType,
   /// The location in the source code
-  pub location: Option<Range<u32>>,
+  pub location: Option<SourceSpan>,
   /// Additional flags
   pub flags: u32
 }
@@ -29,7 +29,7 @@ impl TokenFlags {
   /// Denotes this token was followed directly by a space or a tab
   pub const TAIL_SPACE: u32 = 0b1;
   /// Denotes this token was followed directly by a newline
-  pub const TAIL_NEWLINE: u32 = 0b01;
+  pub const TAIL_NEWLINE: u32 = 0b10;
 }
 
 impl Token {
@@ -43,7 +43,7 @@ impl Token {
     &self.ty
   }
 
-  pub fn location(&self) -> &Option<Range<u32>> {
+  pub fn location(&self) -> &Option<SourceSpan> {
     &self.location
   }
 
@@ -107,7 +107,7 @@ pub enum TokenType {
 
   StringLiteral(/* must own, may be escaped */ String),
   CharLiteral(char),
-  NumericLiteral /* parsed from source span later in parsing/type resolution */,
+  NumericLiteral(NumericLiteralMetadata) /* parsed from source span later in parsing/type resolution */,
 
   Identifier /* parsed from source span */,
 
@@ -132,6 +132,8 @@ pub enum TokenType {
   RBrace,      // }
   LBracket,    // [
   RBracket,    // ]
+  LAngle,      // <
+  RAngle,      // >
 
   Colon,       // :
   Semicolon,   // ;
@@ -150,6 +152,7 @@ pub enum Errno {
   IllegalCharacter,
   UnterminatedLiteral,
   IllegalEscapedChar,
+  IllegalRadixChar,
 }
 
 impl TokenType {
@@ -172,6 +175,8 @@ pub const TREE_ALL_SYMBOLS: LazyCell<CharTree<TokenType>> = LazyCell::new(|| {
   tree.insert_str("}", TokenType::RBrace);
   tree.insert_str("[", TokenType::LBracket);
   tree.insert_str("]", TokenType::RBracket);
+  tree.insert_str("<", TokenType::LAngle);
+  tree.insert_str(">", TokenType::RAngle);
 
   tree.insert_str(":", TokenType::Colon);
   tree.insert_str(";", TokenType::Semicolon);
@@ -199,3 +204,17 @@ pub const KEYWORD_MAP: LazyCell<HashMap<&'static str, TokenType>> = LazyCell::ne
 
   map
 });
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum NumericTypeQualifier {
+  Infer,
+  Float(/* width */ u32),
+  Int(/* width */ u32),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NumericLiteralMetadata {
+  pub is_float: bool,                  // whether this literal should be interpreted as a decimal (`.` or F/D suffix)
+  pub radix: u16,                      // used later to reparse actual number literal content
+  pub type_qual: NumericTypeQualifier, // type qualifier if explicitly specified, otherwise infer
+}

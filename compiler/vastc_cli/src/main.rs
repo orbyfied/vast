@@ -1,8 +1,10 @@
 use std::cmp::max_by_key;
+use std::path::Path;
 use clap::Parser;
 use vastc_impl::parser::lexer::Lexer;
+use vastc_impl::parser::token::{Token, TokenFlags};
 use vastc_supplemental::{debug};
-use vastc_supplemental::source::Source;
+use vastc_supplemental::source::{LineIndexOps, Source};
 
 /// The command line options which may be passed
 #[derive(Parser, Debug)]
@@ -26,7 +28,7 @@ fn main() {
   ///////////////////////
   ///////////////////////
 
-  let source = Source::new("cybeans", "hi \"jk\\\\kee\" { 'a' '\\' ( } ) [ fn let :: @ ]");
+  let source = Source::load_from_file(Path::new("./test.vs")).unwrap();
   let mut lexer = Lexer::new(&source);
   lexer.tokenize();
   if lexer.error_count() > 0 {
@@ -36,5 +38,4 @@ fn main() {
   }
 
   let tokens = lexer.tokens();
-  println!("{:#?}", tokens);
 }

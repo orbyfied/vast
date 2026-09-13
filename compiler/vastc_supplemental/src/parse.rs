@@ -4,8 +4,8 @@ use crate::debug;
 
 /// An iterator of a sized character sequence.
 pub trait CharIterator {
-  fn index(&self) -> u32;
-  fn restore(&mut self, idx: u32);
+  fn index(&self) -> usize;
+  fn restore(&mut self, idx: usize);
   fn advance_0(&mut self) -> Option<char>;
   fn peek_0(&self) -> Option<char>;
   fn done(&self) -> bool;
@@ -46,7 +46,7 @@ impl<T: Clone> CharTree<T> {
     self
   }
 
-  pub fn read_or_restore(&self, it: &mut impl CharIterator) -> Option<(/* parsed associate */ T, /* range where it was parsed */ Range<u32>)> {
+  pub fn read_or_restore(&self, it: &mut impl CharIterator) -> Option<(/* parsed associate */ T, /* range where it was parsed */ Range<usize>)> {
     let start = it.index();
     let mut current: &CharTree<T> = self;
     while !it.done() {

@@ -1,10 +1,7 @@
-use std::cmp::PartialEq;
-use std::ops::{Deref, Range};
-use vastc_supplemental::debug;
-use vastc_supplemental::source::{Cursor, OptionalChar, Segment, Source, SourceSpan, SourceSpanOps};
-use crate::parser::token;
-use crate::parser::token::{Errno, Token, TokenFlags, TokenType, TREE_ALL_SYMBOLS, KEYWORD_MAP};
+use crate::parser::token::{Errno, KEYWORD_MAP, TREE_ALL_SYMBOLS, Token, TokenFlags, TokenType};
 use crate::spec::resolve_escaped_char;
+use std::ops::Deref;
+use vastc_supplemental::source::{Cursor, OptionalChar, Source, SourceSpan, SourceSpanOps};
 
 /// The result type of the `next_token` method. This intentionally does not
 /// return a successful token on success, as Ok may also represent no errors,
@@ -78,6 +75,29 @@ impl<'unit> Lexer<'unit> {
     // try parse special chars
     if let Some((tk, span)) = TREE_ALL_SYMBOLS.deref().read_or_restore(&mut self.cursor) {
       return Ok(_ = self.make(tk, Some(span)));
+    }
+
+    // try parse numeric literal
+    if self.cursor.peek().is_digit(10) {
+      // valid formats:
+      // ints   -- [0(x/b/o)]digits[u][8/16/32/64/...]
+      // floats -- digits[.digits][f][8/16/32/64/...]
+
+      // check for 0[x/b/...]
+      let mut radix = 10;
+      if self.cursor.peek() == '0' && self.cursor.peek_next().is_alphabetic() {
+        radix = match self.cursor.peek_next() {
+          'x' => 16,
+          'b' => 2,
+          'o' => 8,
+          _   => { self.err(Errno::IllegalRadixChar, "unknown radix specifier", Some(self.cursor.here())); 10 },
+        };
+
+        self.cursor.advance_by(2);
+      }
+
+      // start parsing digits!
+      let digitsStartIndex = self.cursor.index();
     }
 
     // try parse identifier
@@ -173,11 +193,13 @@ impl<'unit> Lexer<'unit> {
           Some(loc) => Some(loc.join(cursor.here()))
         };
 
+        cursor.advance();
         return Ok(()) // todo: hack, cba
       }
     }
 
-    Err(self.err(Errno::IllegalCharacter, "unexpected character(s) in tokenization", Some(self.cursor.here().into())))
+    let loc = self.cursor.here_and_advance();
+    Err(self.err(Errno::IllegalCharacter, "unexpected character(s) in tokenization", Some(loc)))
   }
 
   /// Parse the whole source string into a stream of tokens.
@@ -189,11 +211,11 @@ impl<'unit> Lexer<'unit> {
     self
   }
 
-  fn err(&mut self, errno: Errno, msg: &'static str, loc: Option<Range<u32>>) -> usize {
+  fn err(&mut self, errno: Errno, msg: &'static str, loc: Option<SourceSpan>) -> usize {
     self.make(TokenType::Error(errno, msg), loc)
   }
 
-  fn make(&mut self, ty: TokenType, loc: Option<Range<u32>>) -> usize {
+  fn make(&mut self, ty: TokenType, loc: Option<SourceSpan>) -> usize {
     let idx = self.tokens.len();
     let slot: &mut Token = self.tokens.push_mut(Token {
       ty,
@@ -222,6 +244,15 @@ impl<'unit> Lexer<'unit> {
     }
 
     self
+  }
+
+  fn expect_mut(&mut self, predicate: impl FnOnce(&mut Self) -> bool) -> GenericConsumeResult<()> {
+    let idx0 = self.cursor.index();
+    if !predicate(self) {
+      Err(Some(idx0..self.cursor.index() + 1))
+    } else {
+      Ok(())
+    }
   }
 
   fn expect_char_and_always_advance(&mut self, ch: char) -> GenericConsumeResult<()> {

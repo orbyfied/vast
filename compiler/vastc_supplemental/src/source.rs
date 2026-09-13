@@ -1,6 +1,17 @@
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
+use std::path::Path;
 use crate::parse::CharIterator;
+
+/// End-of-file sentinel value, provides just slightly more ergonomic parsing
+pub const EOF: char = '\0';
+
+/// The canonical type for char indices into a source string
+pub type SourceIndex = usize;
+
+/// The canonical type for spans of char indices
+pub type SourceSpan = Range<SourceIndex>;
 
 pub trait SourceSpanOps {
   fn start(&self) -> SourceIndex;
@@ -48,45 +59,68 @@ impl SourceSpanOps for SourceSpan {
 /// The boundary table is sized `length + 1`, where the added entry is an EOF marker.
 #[derive(Clone)]
 pub struct Source {
+  /// The raw UTF-8 text string
   text: String,
+  /// The identifier/name for this source, displayed in diagnostics
   identifier: String,
+  /// The byte boundaries of the codepoints in this string, used for random access
   boundaries: Vec<SourceIndex>,
+  /// Sorted list of all lines, binary searched to create `Position` structs
+  lines: Vec<SourceSpan>,
 }
 
 impl Debug for Source {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_str("Source(id: ")?;
     f.write_str(&*self.identifier)?;
-    f.write_str(", len: ")?;
-    f.write_fmt(format_args!("{}", self.len()))?;
+    f.write_fmt(format_args!(", len: {}, lines: {}", self.len(), self.lines.len()))?;
     f.write_str("}")
   }
 }
 
-/// End-of-file sentinel value, provides just slightly more ergonomic parsing
-pub const EOF: char = '\0';
-
-/// The canonical type for char indices into a source string
-pub type SourceIndex = u32;
-
-/// The canonical type for spans of char indices
-pub type SourceSpan = Range<SourceIndex>;
-
 impl Source {
+  pub fn load_from_file(path: &Path) -> Result<Self, std::io::Error> {
+    // extract source identifier
+    let identifier = path.strip_prefix(std::env::current_dir().expect("no cwd?"))
+      .unwrap_or(path)
+      .to_string_lossy()
+      .into_owned();
+
+    // load actual file data
+    let source_text = std::fs::read_to_string(path)?;
+
+    Ok(Source::new(identifier, source_text))
+  }
+
   pub fn new(id: impl Into<String>, text: impl Into<String>) -> Self {
     let text = text.into();
 
-    // One entry for every Unicode scalar value, plus the final
+    // one entry for every Unicode scalar value, and a final
     // byte offset representing EOF.
     let mut boundaries = Vec::with_capacity(text.len() + 1);
+    let mut lines = Vec::new();
 
-    for (byte_index, _) in text.char_indices() {
+    // find char boundaries and lines in the same loop
+    let mut line_start = 0;
+    for (byte_index, char) in text.char_indices() {
+      let i = boundaries.len(); // current character index
       boundaries.push(byte_index as SourceIndex);
+
+      // check for newline
+      if char == '\n'{
+        lines.push(line_start..i + 1);
+        line_start = i + 1;
+      }
+    }
+
+    // register final line
+    if line_start < boundaries.len() {
+      lines.push(line_start..boundaries.len() + 1);
     }
 
     boundaries.push(text.len() as SourceIndex);
 
-    Self { text, identifier: id.into(), boundaries }
+    Self { text, identifier: id.into(), boundaries, lines }
   }
 
   /// The complete source text.
@@ -173,6 +207,28 @@ impl Source {
     let start = self.position_of(span.start);
     let end = self.position_of(span.end);
     Segment { start, end }
+  }
+
+  /// Find the source character span of the line by the given index
+  pub fn line_span(&self, line_index: usize) -> SourceSpan {
+    self.lines[line_index].clone()
+  }
+
+  /// Find the line corresponding the given source index and return its index and source span
+  pub fn find_line(&self, char_index: SourceIndex) -> usize {
+    self.lines.binary_search_by(|s| {
+      if char_index < s.start { return Ordering::Greater; }
+      if char_index > s.end { return Ordering::Less; }
+      Ordering::Equal
+    }).expect("source index not in a line?")
+  }
+
+  /// Find the start and end lines of the given source span, with an *inclusive* end.
+  pub fn find_lines(&self, span: SourceSpan) -> Range<usize> {
+    let start = self.find_line(span.start());
+    let end = self.find_line(span.end());
+
+    start..end
   }
 }
 
@@ -351,6 +407,12 @@ impl<'a> Cursor<'a> {
 
   pub fn here(&self) -> SourceSpan {
     self.index..self.index + 1
+  }
+
+  pub fn here_and_advance(&mut self) -> SourceSpan {
+    let h = self.index..self.index + 1;
+    self.advance();
+    h
   }
 
   // -------------------------------------------------------------------------
@@ -607,6 +669,16 @@ impl Segment {
 impl Into<SourceSpan> for Segment {
   fn into(self) -> SourceSpan {
     self.start.index..self.end.index
+  }
+}
+
+pub trait LineIndexOps {
+  fn line_span(&self, source: &Source) -> SourceSpan;
+}
+
+impl LineIndexOps for usize {
+  fn line_span(&self, source: &Source) -> SourceSpan {
+    source.line_span(*self)
   }
 }
 
