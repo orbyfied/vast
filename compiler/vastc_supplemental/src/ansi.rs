@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Write};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FormatTarget {

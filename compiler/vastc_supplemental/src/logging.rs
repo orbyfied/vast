@@ -1,8 +1,5 @@
-use std::cell::{Cell, UnsafeCell};
-use std::io;
-use std::io::{BufWriter, Stderr, Write};
-use std::ops::Add;
-use std::sync::{LazyLock, Mutex, OnceLock, RwLock};
+use std::io::{BufWriter, Stderr};
+use std::sync::{Mutex, OnceLock};
 
 /// The shared buffered writer used by all logging macros
 static STDERR_WRITER: OnceLock<Mutex<BufWriter<Stderr>>> = OnceLock::new();

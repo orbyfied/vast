@@ -212,13 +212,13 @@ impl Source {
   }
 
   /// Creates a cursor at the beginning of the source.
-  pub fn cursor(&self) -> Cursor<'_> {
-    Cursor::new(self)
+  pub fn cursor(&self) -> StringCursor<'_> {
+    StringCursor::new(self)
   }
 
   /// Creates a cursor at a particular character index.
-  pub fn cursor_at(&self, index: SourceIndex) -> Cursor<'_> {
-    Cursor::at(self, index)
+  pub fn cursor_at(&self, index: SourceIndex) -> StringCursor<'_> {
+    StringCursor::at(self, index)
   }
 
   /// Find the semantic location for the given character index,
@@ -273,12 +273,12 @@ impl Source {
 
 /// A cursor over a `Source`.
 #[derive(Debug, Clone, Copy)]
-pub struct Cursor<'a> {
+pub struct StringCursor<'a> {
   source: &'a Source,
   index: SourceIndex,
 }
 
-impl<'a> Cursor<'a> {
+impl<'a> StringCursor<'a> {
   pub fn new(source: &'a Source) -> Self {
     Self { source, index: 0 }
   }
@@ -632,7 +632,7 @@ impl OptionalChar for char {
   }
 }
 
-impl<'a> CharIterator for Cursor<'a> {
+impl<'a> CharIterator for StringCursor<'a> {
   fn index(&self) -> SourceIndex {
     self.index()
   }

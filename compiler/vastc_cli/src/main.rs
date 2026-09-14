@@ -1,15 +1,15 @@
-use std::cmp::max_by_key;
 use std::path::Path;
-use clap::Parser;
+use clap::Parser as _;
 use vastc_impl::diagnostics::{print_diagnostic, UnitDiagnosticContext, DiagnosticDetails, DiagnosticType, GenericErrno};
 use vastc_impl::parser::lexer::Lexer;
-use vastc_impl::parser::token::{Token, TokenFlags, TokenType};
+use vastc_impl::parser::parser::{Parser, TokenCursor};
+use vastc_impl::parser::token::{TokenType};
 use vastc_supplemental::{debug};
 use vastc_supplemental::logging::stderr_writer;
-use vastc_supplemental::source::{LineIndexOps, Source};
+use vastc_supplemental::source::{Source};
 
 /// The command line options which may be passed
-#[derive(Parser, Debug)]
+#[derive(clap::Parser, Debug)]
 struct Opts {
   /// The source files to be included in compilation, these are considered the projects
   /// primary sources. Missing `arg` attribute implies positional.
@@ -30,16 +30,20 @@ fn main() {
   ///////////////////////
   ///////////////////////
 
+  // load source file
   let source = Source::load_from_file(Path::new("./test.vs")).unwrap();
   debug!("Loaded source file {:?}", source);
 
+  // create lexer state and tokenize
   let mut lexer = Lexer::new(&source);
   lexer.tokenize();
   debug!("Completed lexical analysis tokenCount: {}, errorCount: {}", lexer.tokens().len(), lexer.error_count());
 
+  // prepare diagnostics context for first errors
   let mut diagnostic_context = UnitDiagnosticContext::new(&source);
   diagnostic_context.with_lexer(&lexer);
 
+  // print lexer diagnostics if present
   if lexer.error_count() > 0 {
     let mut writer = stderr_writer().lock().unwrap();
     lexer.errors().for_each(|err| {
@@ -59,9 +63,23 @@ fn main() {
       }).unwrap();
     });
 
+    print_diagnostic(&mut *writer, &diagnostic_context, &DiagnosticDetails {
+      ty: DiagnosticType::Warn,
+      primary_location: 2..5,
+      errno: GenericErrno {
+        domain: "H",
+        numeral: 1234 as u32
+      },
+
+      msg: "testing warnings"
+    }).unwrap();
+
     println!();
   }
 
-  let tokens = lexer.tokens();
-  // debug!("\nTokens: {:#?}", tokens);
+  // trade lexer instance for token list,
+  // create token stream and parse source unit
+  let mut tokens = lexer.take_tokens();
+  let token_cursor = TokenCursor::new(&mut tokens);
+  let parser = Parser::new(token_cursor);
 }

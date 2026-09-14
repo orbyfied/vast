@@ -1,11 +1,8 @@
 use std::cell::LazyCell;
-use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::ops::Range;
-use vastc_supplemental::ansi;
 use vastc_supplemental::parse::CharTree;
-use vastc_supplemental::source::{Segment, Source, SourceIndex, SourceSpan, SourceSpanOps};
+use vastc_supplemental::source::SourceSpan;
 
 /// Represents a source token with a type, optionally a value, and an attached
 /// position.
@@ -55,38 +52,6 @@ impl Token {
 
   pub fn has_flags(&self, mask: u32) -> bool {
     !(self.flags & mask) == 0
-  }
-}
-
-/// Cursor-like iteration utility over an in-memory list of tokens.
-pub struct TokenStream<'a> {
-  tokens: &'a Vec<Token>,
-  index: usize
-}
-
-impl<'a> TokenStream<'a> {
-  pub fn new(tokens: &'a Vec<Token>) -> Self {
-    TokenStream {
-      tokens,
-      index: 0
-    }
-  }
-
-  pub fn at(&self, idx: usize) -> &Token {
-    if idx >= self.tokens.len() {
-      &self.tokens[idx]
-    } else {
-      &Token::EOF
-    }
-  }
-
-  pub fn advance(&mut self) -> &Token {
-    self.index += 1;
-    self.at(self.index)
-  }
-
-  pub fn peek(&self) -> &Token {
-    self.at(self.index)
   }
 }
 
@@ -326,7 +291,7 @@ pub struct NumericLiteralMetadata {
 impl TokenType {
   pub fn is_keyword(&self) -> bool {
     match self {
-      TokenType::Use |
+      TokenType::Use | TokenType::If | TokenType::Else |
       TokenType::Let | TokenType::Fn | TokenType::USelf | TokenType::LSelf | TokenType::Public | TokenType::Mut
       => true,
 

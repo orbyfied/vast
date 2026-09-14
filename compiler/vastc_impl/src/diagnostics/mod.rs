@@ -1,13 +1,11 @@
 use crate::parser::lexer::Lexer;
+use crate::parser::token::{Token, TokenType};
 use std::cmp::{max, min};
 use std::io;
-use std::io::{BufWriter, Write};
+use std::ops::Range;
 use vastc_supplemental::ansi;
 use vastc_supplemental::ansi::{Attr, Color};
-use vastc_supplemental::io::write_repeated_char;
 use vastc_supplemental::source::{Source, SourceIndex, SourceSpan, SourceSpanOps};
-use crate::parser::token::{Token, TokenType};
-use crate::parser::token::TokenType::Colon;
 
 pub struct UnitDiagnosticContext<'unit> {
   source: &'unit Source,
@@ -75,9 +73,10 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
   // determine rectangle bounds
   let left_col = max(0, min(segment.start.column(), segment.end.column()) as i64 - HORIZONTAL_WINDOW_EXPANSION) as isize;
   let right_col = max(segment.start.column(), segment.end.column()) + HORIZONTAL_WINDOW_EXPANSION as SourceIndex;
-  let rect_width = max((right_col - left_col as SourceIndex) + 20, 80);
+  let rect_width = max((right_col - left_col as SourceIndex) + 25, 85);
 
-  let rect_border_str: String = std::iter::repeat('─').take(rect_width).collect();
+  const H_BORDER_CHAR: char = '─';
+  let rect_border_str: String = std::iter::repeat(H_BORDER_CHAR).take(rect_width).collect();
 
   // print top of segment
   writeln!(writer)?;
@@ -92,9 +91,10 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
   writeln!(writer, concat!(
     "{}│",
     ansi!(gray),
-    "      ╭───{}"
+    "      ╭─{}"
   ), fg, rect_border_str)?;
 
+  let mut last_underline_columns: Option<Range<usize>> = None;
   let source_str = source.text();
   for line_index in line_range {
     let v_distance = exact_line_range.distance(line_index).abs();
@@ -117,6 +117,7 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
     let text_span = line_span.subrange(left_col, min(line_span.len() - 1, right_col) as isize);
     let exact_text_span = det.primary_location.clone();
     let exact_column_span = segment.start.column()..segment.end.column();
+    last_underline_columns = Some(exact_column_span.clone());
 
     // print formatted slice using token data from lexer,
     // and process any special/formatted/annotated ranges
@@ -157,7 +158,7 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
       // check if we are in the primary location of the error,
       // else check if we are in a token, find char style overrides for the token
       if det.primary_location.contains(&char_index) {
-        (color, attr) = (fg, Attr::Underline);
+        (color, attr) = (fg, Attr::Bold);
       } else if let Some(tk) = current_token {
         (color, attr) = char_styles_for_token(tk);
       }
@@ -178,11 +179,22 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
     writeln!(writer)?;
   }
 
-  writeln!(writer, concat!(
-    "{}│",
-    ansi!(gray),
-    "      ╰───{}"
-  ), fg, rect_border_str)?;
+  // print bottom line, which may have some highlighting
+  if let Some(highlight) = last_underline_columns {
+    write!(writer, concat!(
+      "{}│",
+      ansi!(gray),
+      "      ╰─{}"
+    ), fg, &rect_border_str[0..highlight.start * H_BORDER_CHAR.len_utf8()])?;
+    write!(writer, "{}{}", fg, &rect_border_str[highlight.start * H_BORDER_CHAR.len_utf8()..highlight.end * H_BORDER_CHAR.len_utf8()])?;
+    writeln!(writer, concat!(ansi!(gray), "{}"), &rect_border_str[highlight.end * H_BORDER_CHAR.len_utf8()..rect_border_str.len()])?;
+  } else {
+    writeln!(writer, concat!(
+      "{}│",
+      ansi!(gray),
+      "      ╰─{}"
+    ), fg, rect_border_str)?;
+  }
 
   // print error header/description
   let icon = det.ty.icon();
@@ -204,7 +216,7 @@ pub fn char_styles_for_token(tk: &Token) -> (Color, Attr) {
   }
 
   match tk.ty {
-    TokenType::Error(_, _) => (Color::Gray, Attr::Strike),
+    TokenType::Error(_, _) => (Color::Red, Attr::Faint),
 
     TokenType::BoolLiteral(_) => (Color::lit(0xb610e8), Attr::Italic),
     TokenType::CharLiteral(_) => (Color::lit(0x7cf06e), Attr::Reset),

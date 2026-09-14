@@ -16,7 +16,7 @@ vastc_supplemental = { path = "compiler/vastc_supplemental" }
 vastc_impl = { path = "compiler/vastc_impl" }
 # external dependencies
 clap = { version = "4.6.6", features = ["derive"] }
-inkwell = { version = "0.10.0", features = [] }
+inkwell = { version = "0.10.0", features = ["llvm-sys-221", "llvm22-1"] }
 
 [profile.release]
 lto = true

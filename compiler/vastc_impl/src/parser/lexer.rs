@@ -1,7 +1,7 @@
 use crate::parser::token::{Errno, NumericTypeQualifier, Token, TokenFlags, TokenType, KEYWORD_MAP, TREE_ALL_SYMBOLS, NumericLiteralMetadata};
 use crate::spec::resolve_escaped_char;
 use std::ops::Deref;
-use vastc_supplemental::source::{Cursor, OptionalChar, Source, SourceSpan, SourceSpanOps};
+use vastc_supplemental::source::{StringCursor, OptionalChar, Source, SourceSpan, SourceSpanOps};
 
 /// The result type of the `next_token` method. This intentionally does not
 /// return a successful token on success, as Ok may also represent no errors,
@@ -19,7 +19,7 @@ pub struct Lexer<'unit> {
   /// The loaded source code to be compiled.
   source: &'unit Source,
   /// The current (owned) cursor into the source string.
-  cursor: Cursor<'unit>,
+  cursor: StringCursor<'unit>,
   /// The result vector of tokens
   tokens: Vec<Token>,
   /// The vector of only error tokens as indices into `self.tokens`
@@ -30,7 +30,7 @@ impl<'unit> Lexer<'unit> {
   pub fn new(source: &'unit Source) -> Self {
     Lexer {
       source,
-      cursor: Cursor::new(source),
+      cursor: StringCursor::new(source),
       tokens: Vec::new(),
       error_tokens: Vec::new()
     }
@@ -38,6 +38,10 @@ impl<'unit> Lexer<'unit> {
 
   pub fn tokens(&self) -> &Vec<Token> {
     &self.tokens
+  }
+  
+  pub fn take_tokens(self) -> Vec<Token> {
+    self.tokens
   }
 
   pub fn error_count(&self) -> usize {
@@ -48,7 +52,7 @@ impl<'unit> Lexer<'unit> {
     self.error_tokens.iter().map(|&idx| &self.tokens[idx])
   }
 
-  pub fn cursor(&self) -> &Cursor<'_> {
+  pub fn cursor(&self) -> &StringCursor<'_> {
     &self.cursor
   }
 
@@ -101,7 +105,7 @@ impl<'unit> Lexer<'unit> {
       let mut type_qual = NumericTypeQualifier::Infer;
 
       // start parsing digits!
-      let contentStartIndex = self.cursor.index();
+      let content_start_index = self.cursor.index();
       if self.cursor.peek() == '-' {
         self.cursor.advance(); // negative sign parsed later
       }
@@ -115,7 +119,7 @@ impl<'unit> Lexer<'unit> {
       if self.cursor.peek() == '.' {
         if /* member access */ self.cursor.peek_next().is_alphabetic() ||
            /* range spec */ self.cursor.peek_next() == '.' {
-          return Ok(_ = self.make(TokenType::NumericLiteral(contentStartIndex..self.cursor.index(), NumericLiteralMetadata {
+          return Ok(_ = self.make(TokenType::NumericLiteral(content_start_index..self.cursor.index(), NumericLiteralMetadata {
             is_float,
             type_qual,
             radix: radix as u16
@@ -132,7 +136,7 @@ impl<'unit> Lexer<'unit> {
         }
       }
 
-      let endIndex = self.cursor.index();
+      let end_index = self.cursor.index();
 
       // parse type qual and width
       if self.cursor.peek().is_alphabetic() {
@@ -159,7 +163,7 @@ impl<'unit> Lexer<'unit> {
         is_float = true;
       }
 
-      return Ok(_ = self.make(TokenType::NumericLiteral(contentStartIndex..endIndex, NumericLiteralMetadata {
+      return Ok(_ = self.make(TokenType::NumericLiteral(content_start_index..end_index, NumericLiteralMetadata {
         is_float,
         type_qual,
         radix: radix as u16

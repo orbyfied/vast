@@ -9,3 +9,4 @@ rust-version.workspace = true
 vastc_supplemental = { workspace = true }
 vastc_impl = { workspace = true }
 clap = { workspace = true }
+#inkwell = { workspace = true, features = ["llvm22-1", "llvm-sys-221"] }
