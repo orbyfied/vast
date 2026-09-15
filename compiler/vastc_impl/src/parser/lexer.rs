@@ -234,7 +234,15 @@ impl<'unit> Lexer<'unit> {
       if self.cursor.peek() != '\\' {
         let ch = self.cursor.peek();
         self.cursor.advance();
-        self.expect_char_and_always_advance('\'').map_err(|s| self.err(Errno::IllegalCharacter, "unexpected character, expected `'` to close char literal", s))?;
+
+        // check for a closing `'`, if we dont find one, we restore the position to after the first '
+        // and interpret the opening one as an Apostrophe token.
+        if self.cursor.peek() != '\'' {
+          self.cursor.set_index(idx);
+          return Ok(_ = self.make(TokenType::Apostrophe, Some(idx0..idx)))
+        }
+
+        self.cursor.advance();
         return Ok(_ = self.make(TokenType::CharLiteral(ch), Some(idx0..self.cursor.index())))
       }
 
@@ -246,7 +254,6 @@ impl<'unit> Lexer<'unit> {
         _ = self.err(Errno::IllegalEscapedChar, "illegal escape by character in char literal", Some(idx..self.cursor.index()))
       }
 
-      // expect closing '
       self.expect_char_and_always_advance('\'').map_err(|s| self.err(Errno::IllegalCharacter, "expected `'` to close char literal", s))?;
       return Ok(())
     }

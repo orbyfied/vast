@@ -6,6 +6,7 @@ use std::ops::Range;
 use vastc_supplemental::ansi;
 use vastc_supplemental::ansi::{Attr, Color};
 use vastc_supplemental::source::{Source, SourceIndex, SourceSpan, SourceSpanOps};
+use crate::parser::token::TokenType::Colon;
 
 pub struct UnitDiagnosticContext<'unit> {
   source: &'unit Source,
@@ -164,7 +165,7 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
       }
 
       // darken color as column distance increases
-      let h_dist_factor: f32 = -0.7 * (h_distance as f32 / HORIZONTAL_WINDOW_EXPANSION as f32);
+      let h_dist_factor: f32 = -0.3 * (h_distance as f32 / HORIZONTAL_WINDOW_EXPANSION as f32);
       color = color.multiply_scalar(h_dist_factor.exp());
 
       if (color, attr) != last_formatting {
@@ -212,7 +213,7 @@ pub fn print_diagnostic(writer: &mut impl io::Write, ctx: &UnitDiagnosticContext
 
 pub fn char_styles_for_token(tk: &Token) -> (Color, Attr) {
   if tk.ty.is_keyword() {
-    return (Color::lit(0xb610e8), Attr::Reset);
+    return (Color::lit(0x9d39cc), Attr::Reset);
   }
 
   match tk.ty {
@@ -223,6 +224,12 @@ pub fn char_styles_for_token(tk: &Token) -> (Color, Attr) {
     TokenType::StringLiteral(_) => (Color::lit(0x61db53), Attr::Reset),
     TokenType::NumericLiteral(_, _) => (Color::lit(0xd19343), Attr::Reset),
 
+    TokenType::Reference | TokenType::Dereference => (Color::lit(0xd6621e), Attr::Reset),
+    TokenType::EvalIfPresent | TokenType::UnwrapOrReturn => (Color::lit(0xd69f1e), Attr::Reset),
+    TokenType::Clone => (Color::lit(0x1e96d6), Attr::Reset),
+
+    TokenType::Apostrophe => (Color::lit(0x1e96d6), Attr::Reset),
+
     _ => (DEFAULT_TRUE_COLOR, Attr::Reset)
   }
 }
@@ -231,16 +238,16 @@ impl DiagnosticType {
   pub fn color(&self) -> Color {
     match self {
       DiagnosticType::Error => Color::Red,
-      DiagnosticType::Warn => Color::Yellow,
-      DiagnosticType::Note => Color::Blue,
+      DiagnosticType::Warn  => Color::Yellow,
+      DiagnosticType::Note  => Color::Blue,
     }
   }
 
   pub fn icon(&self) -> char {
     match self {
       DiagnosticType::Error => '■',
-      DiagnosticType::Warn => '▲',
-      DiagnosticType::Note => '◆',
+      DiagnosticType::Warn  => '▲',
+      DiagnosticType::Note  => '◆',
     }
   }
 

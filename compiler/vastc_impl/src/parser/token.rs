@@ -112,11 +112,21 @@ pub enum TokenType {
 
   Colon,       // :
   Semicolon,   // ;
+  Apostrophe,  // '
 
   DoubleColon, // ::
   Dot,         // .
   Comma,       // ,
   At,          // @
+
+  /*
+      Suffix Operations
+   */
+  UnwrapOrReturn, // .?
+  EvalIfPresent,  // ?.
+  Dereference,    // .*
+  Reference,      // .&
+  Clone,          // .+
 
   /*
       Assignment
@@ -208,6 +218,12 @@ pub const TREE_ALL_SYMBOLS: LazyCell<CharTree<TokenType>> = LazyCell::new(|| {
   tree.insert_str(",", TokenType::Comma);
   tree.insert_str("@", TokenType::At);
   tree.insert_str("::", TokenType::DoubleColon);
+
+  tree.insert_str(".?", TokenType::UnwrapOrReturn);
+  tree.insert_str("?.", TokenType::EvalIfPresent);
+  tree.insert_str(".*", TokenType::Dereference);
+  tree.insert_str(".&", TokenType::Reference);
+  tree.insert_str(".+", TokenType::Clone);
 
   tree.insert_str("=", TokenType::Assign);
 

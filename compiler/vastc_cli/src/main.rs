@@ -63,17 +63,6 @@ fn main() {
       }).unwrap();
     });
 
-    print_diagnostic(&mut *writer, &diagnostic_context, &DiagnosticDetails {
-      ty: DiagnosticType::Warn,
-      primary_location: 2..5,
-      errno: GenericErrno {
-        domain: "H",
-        numeral: 1234 as u32
-      },
-
-      msg: "testing warnings"
-    }).unwrap();
-
     println!();
   }
 
@@ -82,4 +71,5 @@ fn main() {
   let mut tokens = lexer.take_tokens();
   let token_cursor = TokenCursor::new(&mut tokens);
   let parser = Parser::new(token_cursor);
+  // println!("{:#?}", tokens);
 }
